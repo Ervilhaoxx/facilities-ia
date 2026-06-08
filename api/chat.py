@@ -1,34 +1,145 @@
 """
 api/chat.py
 Endpoint principal do Facilities.IA.
-Recebe uma mensagem, roda o agente com tool use, retorna a resposta.
+Busca chamados reais do Pipefy via GraphQL.
 """
 import json
 import os
+import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler
 from datetime import datetime
 
 import anthropic
 
-# ─── DADOS ────────────────────────────────────────────────────────────────────
-DATA_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "chamados.json")
+# ─── CONFIG ───────────────────────────────────────────────────────────────────
+PIPEFY_TOKEN  = os.environ.get("PIPEFY_TOKEN", "")
+PIPEFY_PIPE_ID = "304316750"
+PIPEFY_API    = "https://api.pipefy.com/graphql"
 
-def carregar_chamados():
+# ─── PIPEFY ───────────────────────────────────────────────────────────────────
+def buscar_cards_pipefy(filtro_status=None):
+    """Busca cards do pipe de facilities no Pipefy via GraphQL."""
+    query = """
+    query($pipeId: ID!) {
+      pipe(id: $pipeId) {
+        name
+        phases {
+          name
+          cards_count
+          cards {
+            edges {
+              node {
+                id
+                title
+                createdAt
+                due_date
+                assignees { name }
+                fields {
+                  name
+                  value
+                }
+                current_phase { name }
+                labels { name color }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    payload = json.dumps({
+        "query": query,
+        "variables": {"pipeId": PIPEFY_PIPE_ID}
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        PIPEFY_API,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {PIPEFY_TOKEN}"
+        }
+    )
+
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return []
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        return None, str(e)
 
-def salvar_chamados(chamados):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(chamados, f, ensure_ascii=False, indent=2)
+    if "errors" in data:
+        return None, str(data["errors"])
+
+    pipe = data.get("data", {}).get("pipe", {})
+    phases = pipe.get("phases", [])
+
+    chamados = []
+    for phase in phases:
+        phase_name = phase.get("name", "")
+        for edge in phase.get("cards", {}).get("edges", []):
+            card = edge.get("node", {})
+            
+            # Extrai campos do card
+            fields = {f["name"]: f["value"] for f in card.get("fields", []) if f.get("value")}
+            
+            # Mapeia status pela fase
+            status = mapear_status(phase_name)
+            
+            # Pega prioridade dos labels ou campos
+            prioridade = "media"
+            for label in card.get("labels", []):
+                label_name = label.get("name", "").lower()
+                if "urgente" in label_name:
+                    prioridade = "urgente"
+                elif "alta" in label_name:
+                    prioridade = "alta"
+                elif "baixa" in label_name:
+                    prioridade = "baixa"
+            
+            chamado = {
+                "id":          card.get("id"),
+                "protocolo":   f"FCL-{card.get('id', '?')}",
+                "titulo":      card.get("title", "Sem título"),
+                "status":      status,
+                "fase":        phase_name,
+                "prioridade":  fields.get("Prioridade", prioridade).lower() if fields.get("Prioridade") else prioridade,
+                "categoria":   fields.get("Categoria", fields.get("Tipo", "Geral")),
+                "solicitante": fields.get("Solicitante", fields.get("Nome", "Não informado")),
+                "local":       fields.get("Local", fields.get("Andar", "")),
+                "descricao":   fields.get("Descrição", fields.get("Descricao", "")),
+                "data":        card.get("createdAt", "")[:10] if card.get("createdAt") else "",
+                "responsavel": ", ".join(a["name"] for a in card.get("assignees", [])),
+            }
+            chamados.append(chamado)
+
+    # Filtra por status se pedido
+    if filtro_status and filtro_status != "todos":
+        chamados = [c for c in chamados if c["status"] == filtro_status]
+
+    return chamados, None
+
+
+def mapear_status(fase_name):
+    """Mapeia nome da fase do Pipefy para status padronizado."""
+    fase = fase_name.lower()
+    if any(x in fase for x in ["início", "inicio", "aberto", "novo", "solicitaç", "entrada"]):
+        return "aberto"
+    elif any(x in fase for x in ["andamento", "execução", "execucao", "em curso", "aprovação gestor"]):
+        return "em_andamento"
+    elif any(x in fase for x in ["concluído", "concluido", "feito", "done", "finalizado", "resolvido"]):
+        return "concluido"
+    elif any(x in fase for x in ["cancelado", "cancelado", "recusado"]):
+        return "cancelado"
+    else:
+        return "aberto"
+
 
 # ─── FERRAMENTAS ──────────────────────────────────────────────────────────────
 TOOLS = [
     {
         "name": "listar_chamados",
-        "description": "Lista chamados de facilities com filtros opcionais. Use para responder perguntas sobre chamados abertos, urgentes, por categoria etc.",
+        "description": "Lista chamados reais de facilities do Pipefy. Use para responder perguntas sobre chamados abertos, urgentes, por categoria, status etc.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -40,24 +151,8 @@ TOOLS = [
         }
     },
     {
-        "name": "criar_chamado",
-        "description": "Cria um novo chamado de facilities. Use quando o usuário pedir para abrir ou registrar um chamado.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "titulo":     {"type": "string"},
-                "categoria":  {"type": "string"},
-                "prioridade": {"type": "string", "enum": ["baixa", "media", "alta", "urgente"]},
-                "solicitante":{"type": "string"},
-                "local":      {"type": "string"},
-                "descricao":  {"type": "string"}
-            },
-            "required": ["titulo", "categoria", "prioridade", "solicitante"]
-        }
-    },
-    {
         "name": "resumo_dashboard",
-        "description": "Retorna métricas gerais: total de chamados, abertos, urgentes, SLA. Use para perguntas sobre status geral ou relatório.",
+        "description": "Retorna métricas gerais do Pipefy: total de chamados, por fase, urgentes. Use para perguntas sobre status geral ou relatório.",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -68,57 +163,49 @@ TOOLS = [
 
 # ─── EXECUÇÃO DAS FERRAMENTAS ─────────────────────────────────────────────────
 def executar_ferramenta(nome: str, params: dict) -> str:
-    chamados = carregar_chamados()
 
     if nome == "listar_chamados":
-        resultado = chamados
-        if params.get("status") and params["status"] != "todos":
-            resultado = [c for c in resultado if c.get("status") == params["status"]]
-        if params.get("prioridade") and params["prioridade"] != "todas":
-            resultado = [c for c in resultado if c.get("prioridade") == params["prioridade"]]
-        if params.get("categoria"):
-            resultado = [c for c in resultado if c.get("categoria", "").lower() == params["categoria"].lower()]
+        filtro = params.get("status", "todos")
+        chamados, erro = buscar_cards_pipefy(filtro)
 
-        if not resultado:
+        if erro:
+            return f"Erro ao buscar dados do Pipefy: {erro}"
+        if not chamados:
             return "Nenhum chamado encontrado com esses filtros."
 
-        linhas = f"{len(resultado)} chamado(s) encontrado(s):\n\n"
-        for c in resultado[:10]:
+        # Aplica filtro de prioridade
+        if params.get("prioridade") and params["prioridade"] != "todas":
+            chamados = [c for c in chamados if c.get("prioridade") == params["prioridade"]]
+
+        # Aplica filtro de categoria
+        if params.get("categoria"):
+            chamados = [c for c in chamados if params["categoria"].lower() in c.get("categoria", "").lower()]
+
+        linhas = f"{len(chamados)} chamado(s) encontrado(s):\n\n"
+        for c in chamados[:15]:
             linhas += (
                 f"• {c['protocolo']} — {c['titulo']}\n"
-                f"  Status: {c['status']} | Prioridade: {c['prioridade']} | "
-                f"Categoria: {c['categoria']} | Local: {c.get('local','?')}\n"
-                f"  Solicitante: {c['solicitante']} | Data: {c['data']}\n\n"
+                f"  Fase: {c['fase']} | Prioridade: {c['prioridade']} | Categoria: {c['categoria']}\n"
+                f"  Solicitante: {c['solicitante']} | Local: {c.get('local','?')} | Data: {c['data']}\n\n"
             )
         return linhas
 
-    elif nome == "criar_chamado":
-        novo_id = max((c["id"] for c in chamados), default=0) + 1
-        novo = {
-            "id":          novo_id,
-            "protocolo":   f"FCL-{novo_id:04d}",
-            "titulo":      params.get("titulo"),
-            "categoria":   params.get("categoria", "Manutenção"),
-            "prioridade":  params.get("prioridade", "media"),
-            "status":      "aberto",
-            "solicitante": params.get("solicitante", "Não informado"),
-            "local":       params.get("local", ""),
-            "descricao":   params.get("descricao", ""),
-            "data":        datetime.now().strftime("%Y-%m-%d"),
-        }
-        chamados.append(novo)
-        salvar_chamados(chamados)
-        return f"Chamado criado! Protocolo: {novo['protocolo']} | Status: aberto | Prioridade: {novo['prioridade']}"
-
     elif nome == "resumo_dashboard":
+        chamados, erro = buscar_cards_pipefy()
+
+        if erro:
+            return f"Erro ao buscar dados do Pipefy: {erro}"
+
         total      = len(chamados)
-        abertos    = len([c for c in chamados if c.get("status") == "aberto"])
-        andamento  = len([c for c in chamados if c.get("status") == "em_andamento"])
-        concluidos = len([c for c in chamados if c.get("status") == "concluido"])
-        urgentes   = len([c for c in chamados if c.get("prioridade") == "urgente"])
+        abertos    = len([c for c in chamados if c["status"] == "aberto"])
+        andamento  = len([c for c in chamados if c["status"] == "em_andamento"])
+        concluidos = len([c for c in chamados if c["status"] == "concluido"])
+        urgentes   = len([c for c in chamados if c["prioridade"] == "urgente"])
         sla        = round(concluidos / total * 100, 1) if total > 0 else 0
+
         return (
-            f"Total: {total} chamados\n"
+            f"Dashboard Facilities — Pipefy\n\n"
+            f"Total de chamados: {total}\n"
             f"Abertos: {abertos} | Em andamento: {andamento} | Concluídos: {concluidos}\n"
             f"Urgentes: {urgentes}\n"
             f"SLA (conclusão): {sla}%"
@@ -126,16 +213,16 @@ def executar_ferramenta(nome: str, params: dict) -> str:
 
     return "Ferramenta não reconhecida."
 
+
 # ─── AGENTE ───────────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Você é o Facilities.IA, assistente de inteligência artificial especializado em gestão de facilities da Logcomex.
 
-Você pode consultar e criar chamados, ver o dashboard e ajudar gestores e colaboradores com tudo relacionado ao ambiente de trabalho.
+Você tem acesso aos chamados reais do Pipefy da Logcomex em tempo real.
 
-Responda sempre em português brasileiro. Seja direto, use dados reais e sempre ofereça um próximo passo ou insight útil."""
+Responda sempre em português brasileiro. Seja direto, use os dados reais e sempre ofereça um próximo passo ou insight útil."""
 
 def rodar_agente(mensagem: str, historico: list) -> str:
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-    
     mensagens = historico + [{"role": "user", "content": mensagem}]
 
     while True:
@@ -163,13 +250,13 @@ def rodar_agente(mensagem: str, historico: list) -> str:
                     })
             mensagens.append({"role": "user", "content": resultados})
 
+
 # ─── HANDLER HTTP ─────────────────────────────────────────────────────────────
 class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         tamanho = int(self.headers.get("Content-Length", 0))
         corpo   = json.loads(self.rfile.read(tamanho))
-
         mensagem  = corpo.get("message", "")
         historico = corpo.get("history", [])
 
