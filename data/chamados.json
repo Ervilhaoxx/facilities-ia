@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "protocolo": "FCL-0001",
+    "titulo": "Ar-condicionado do 3º andar não está gelando",
+    "categoria": "Manutenção",
+    "prioridade": "alta",
+    "status": "aberto",
+    "solicitante": "Ana Lima",
+    "local": "3º andar",
+    "data": "2026-06-01"
+  },
+  {
+    "id": 2,
+    "protocolo": "FCL-0002",
+    "titulo": "Lâmpada queimada na sala de reuniões",
+    "categoria": "Infraestrutura",
+    "prioridade": "media",
+    "status": "em_andamento",
+    "solicitante": "Carlos Souza",
+    "local": "Sala de reuniões",
+    "data": "2026-06-02"
+  },
+  {
+    "id": 3,
+    "protocolo": "FCL-0003",
+    "titulo": "Vazamento na pia do banheiro masculino",
+    "categoria": "Manutenção",
+    "prioridade": "urgente",
+    "status": "aberto",
+    "solicitante": "João Pereira",
+    "local": "Banheiro masculino",
+    "data": "2026-06-03"
+  },
+  {
+    "id": 4,
+    "protocolo": "FCL-0004",
+    "titulo": "Reposição de café e suprimentos da cozinha",
+    "categoria": "Suprimentos",
+    "prioridade": "baixa",
+    "status": "concluido",
+    "solicitante": "Mariana Costa",
+    "local": "Cozinha",
+    "data": "2026-06-04"
+  },
+  {
+    "id": 5,
+    "protocolo": "FCL-0005",
+    "titulo": "Porta do escritório travando",
+    "categoria": "Infraestrutura",
+    "prioridade": "media",
+    "status": "aberto",
+    "solicitante": "Rafael Mendes",
+    "local": "Entrada principal",
+    "data": "2026-06-05"
+  }
+]

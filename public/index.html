@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facilities.IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">F</div>
+      <div class="logo-text">
+        <span class="logo-name">Facilities<strong>.IA</strong></span>
+        <span class="logo-sub">Logcomex</span>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-action="new-chat" onclick="novaConversa()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Nova conversa
+    </button>
+
+    <div class="nav-section-label">Ações rápidas</div>
+
+    <button class="nav-item" onclick="enviarSugestao('Quais chamados estão abertos agora?')">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Chamados abertos
+    </button>
+    <button class="nav-item" onclick="enviarSugestao('Tem algum chamado urgente?')">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Chamados urgentes
+    </button>
+    <button class="nav-item" onclick="enviarSugestao('Me dá um resumo geral do facilities')">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" onclick="enviarSugestao('Abre um chamado de manutenção urgente')">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Novo chamado
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">L</div>
+      <div>
+        <div class="user-name">Logcomex</div>
+        <div class="user-role">Facilities</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- EMPTY STATE -->
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">
+      <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <h1>Olá, sou o Facilities.IA</h1>
+    <p>Seu assistente inteligente para gestão de facilities da Logcomex.<br>Pergunte sobre chamados, crie solicitações ou peça um relatório.</p>
+
+    <div class="suggestions">
+      <button class="suggestion-btn" onclick="enviarSugestao('Quais chamados estão abertos agora?')">
+        Quais chamados estão abertos?
+      </button>
+      <button class="suggestion-btn" onclick="enviarSugestao('Me dá um resumo geral do facilities')">
+        Resumo geral do facilities
+      </button>
+      <button class="suggestion-btn" onclick="enviarSugestao('Tem algum chamado urgente?')">
+        Tem algum chamado urgente?
+      </button>
+      <button class="suggestion-btn" onclick="enviarSugestao('Abre um chamado: ar-condicionado quebrado no 2º andar, prioridade alta, solicitante João Silva')">
+        Criar chamado de manutenção
+      </button>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-container" id="chat-container" style="display:none">
+    <div class="messages" id="messages"></div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <div class="input-wrapper">
+      <textarea
+        id="input"
+        placeholder="Pergunte sobre chamados, crie solicitações, peça relatórios..."
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="send-btn" onclick="enviar()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <p class="input-hint">Facilities.IA pode cometer erros. Verifique informações importantes.</p>
+  </div>
+
+</main>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
